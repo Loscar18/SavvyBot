@@ -1,709 +1,792 @@
-# SavvyBot v1.1 🌊
+# SavvyBot v1.1
 
-> **Plataforma comercial multi-tenant de agentes de IA**
-> 
-> *El WhatsApp de los agentes de IA - Crea, personaliza y agrupa agentes como si fuera una conversación*
+## 🌊 El WhatsApp de los agentes de IA
 
----
+SavvyBot es una plataforma **multi-tenant**, **production-ready** y **comercializable** que te permite crear, personalizar y agrupar agentes de IA como si fuera WhatsApp. Cada usuario tiene su propio espacio de trabajo aislado donde puede gestionar agentes, chats, grupos, integraciones y rutinas.
 
-## 🚀 Descripción
+## 🚀 Características Principales
 
-SavvyBot es una plataforma **100% funcional y gratuita** que permite:
+### ✅ Multi-tenant con Aislamiento Total
+- Cada usuario = un workspace completamente aislado
+- **Row-Level Security (RLS)** en PostgreSQL
+- Ninguna consulta cruza workspaces
+- Datos 100% separados entre usuarios
 
-- ✅ Crear agentes de IA personalizados (nombre, avatar, personalidad, instrucciones)
-- ✅ Chatear con agentes como si fuera WhatsApp (burbujas, streaming, typing indicators)
-- ✅ Crear grupos de agentes que colaboran (modo "todos" o "relevo")
-- ✅ Conectar integraciones (Composio, MCPs, APIs personalizadas) **sin tocar código**
-- ✅ Configurar permisos por agente (qué herramientas puede usar)
-- ✅ Sistema de aprobaciones para acciones sensibles
-- ✅ Memoria persistente por agente y workspace
-- ✅ Skills reutilizables
-- ✅ Rutinas programadas (diarias, semanales, manuales)
-- ✅ **Multi-tenant estricto**: cada usuario tiene su workspace aislado
-- ✅ **BYOK (Bring Your Own Key)**: cada usuario configura su propia clave de LLM
-- ✅ **0€/mes**: despliegue gratis en Oracle Cloud, Neon, Upstash, etc.
+### ✅ BYOK - Trae tu propia clave
+- **Cero coste** para la plataforma
+- Cada usuario configura su propia clave LLM (xAI, OpenAI, Anthropic, etc.)
+- Las claves se guardan **cifradas (AES-256-GCM)** en la base de datos
+- Sin clave configurada: modo demo con respuestas de plantilla
 
----
+### ✅ Chat WhatsApp-like
+- Interfaz familiar con burbujas de chat
+- Typing indicators en tiempo real
+- **Streaming SSE** para respuestas palabra a palabra
+- Historial de conversaciones
+- Búsqueda de chats
 
-## 📦 Estado del Proyecto
+### ✅ Agentes Inteligentes
+- CRUD completo de agentes sin tocar código
+- Personalización: nombre, emoji, color, rol, personalidad
+- **System prompt** editable con plantilla por defecto
+- **Niveles de autonomía (N1, N2, N3)**
+- Estado: online/trabajando/pausado
+- Modelos LLM personalizados por agente
 
-| Fase | Estado | % Completado |
-|------|--------|---------------|
-| **Fase 1: Cimientos** | ✅ COMPLETADA | 100% |
-| Fase 2: Chat + Motor | ⏳ Pendiente | 0% |
-| Fase 3: Integraciones | ⏳ Pendiente | 0% |
-| Fase 4: Grupos + Rutinas | ⏳ Pendiente | 0% |
-| Fase 5: Android + UI | ⏳ Pendiente | 0% |
+### ✅ Motor de Turnos
+- Procesamiento asíncrono con **BullMQ + Redis**
+- Máximo **15 pasos** por turno
+- Loop agéntico: piensa → tool → observa → repite
+- **Streaming SSE** al chat
+- Eventos de actividad por cada tool usada
 
-**📊 Total: ~50% completado**
+### ✅ Sistema de Aprobaciones
+- **N1**: Todo requiere aprobación
+- **N2**: Lectura libre, escritura con aprobación
+- **N3**: Ejecución libre (excepto acciones irreversibles)
+- Tarjetas de aprobación en el chat
+- **Auditoría persistente** de todas las decisiones
+- Acciones irreversibles (comprar/borrar) SIEMPRE requieren aprobación
 
----
+### ✅ Memoria Persistente
+- Notas por agente + hechos globales del workspace
+- **Auto-resumen** tras cada tarea
+- Editable en UI
+- Sin credenciales jamás
 
-## 🏗️ Arquitectura
+### ✅ Skills
+- CRUD por agente
+- Objetivo, pasos, entradas/salidas, errores conocidos
+- Botón "convertir el último trabajo en skill"
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        FRONTEND (Next.js 15)                 │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐ │
-│  │ Dashboard│  │   Chat  │  │  Agents │  │ Settings    │ │
-│  │          │  │(WhatsApp│  │  &      │  │             │ │
-│  │          │  │  like)  │  │ Groups  │  │             │ │
-│  └──────────┘  └──────────┘  └──────────┘  └─────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      BACKEND (API)                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐ │
-│  │  Auth   │  │ Agents  │  │Integrations│  │  Queue     │ │
-│  │(JWT/OAuth)│  │(CRUD)   │  │(Composio │  │ (BullMQ)   │ │
-│  └──────────┘  └──────────┘  │  + MCP   │  └─────────────┘ │
-│                             │  + API)   │                   │
-│                             └──────────┘                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────┐ ┌─────────────┐
-│   PostgreSQL    │ │    Redis    │ │   Worker    │
-│   (Drizzle ORM) │ │  (BullMQ)   │ │ (BullMQ)    │
-│   + RLS         │ │             │ │             │
-└─────────────────┘ └─────────────┘ └─────────────┘
-```
+### ✅ Grupos de Agentes
+- Creación como un grupo de WhatsApp
+- Modos: **Todos** (cada miembro responde) o **Relevo** (coordinador delega)
+- Chat de grupo con avatares por agente
+- Silenciar miembros
+- Mencionar agentes (@Vector hazlo tú)
 
----
+### ✅ Integraciones
+
+#### 🔗 Composio OAuth
+- Catálogo de apps: Google Calendar, Gmail, Drive, Slack, GitHub, Notion, LinkedIn, Twitter/X
+- OAuth **in-app** (sin tocar archivos de configuración)
+- La clave API de Composio la configura el propietario de la plataforma
+
+#### 🤖 MCP Servers
+- Formulario con nombre, transporte (URL http/sse remoto)
+- **tools/list** en vivo al guardar
+- Estado de conexión con recheck automático
+- Sin stdio en SaaS
+
+#### 🌐 APIs Personalizadas
+- Nombre, baseUrl, auth (bearer/header/query/none)
+- Clave pegada en el formulario (cifrada en BD)
+- Endpoints definidos en la UI
+- Cada endpoint se convierte en tool para los agentes
+- **Proxy server-side** para que las claves nunca viajen al cliente
+
+#### 🔐 Matriz de Permisos
+- Por agente: lectura libre / escritura con aprobación / bloqueada
+- Selector rápido en la creación de grupos
+- El agente solo recibe en el LLM las herramientas permitidas
+
+### ✅ Rutinas
+- Triggers: diarios, semanales, por horas, manuales, cron
+- Asignables a agente o grupo
+- Autonomía propia
+- Interruptor on/off
+- Log de ejecuciones
+- **Auto-pausa** tras 2 fallos seguidos + notificación
+- Horario silencioso configurable
+
+### ✅ Notificaciones
+- Web (toast)
+- Push (Android)
+- Eventos: aprobación pendiente, tarea terminada, rutina ejecutada
+
+### ✅ Dashboard
+- Estadísticas: agentes activos, hilos, integraciones, actividad
+- Gráfica de actividad con **recharts**
+- Panel de uso (turnos, tokens, herramientas)
+- Avisos al 80% de uso
+
+### ✅ Ajustes
+- Exportar/importar configuración del workspace en JSON (sin secretos)
+- Zona horaria
+- Tema (claro/oscuro/sistema)
+- Idioma
+- BYOK: configuración de clave LLM
+- Composio: configuración de clave API
+- Stripe: configuración opcional
+- Borrado de cuenta con los datos
+
+### ✅ Android App
+- **Capacitor** wrapper sobre la web app
+- Misma base de código
+- Notificaciones push
+- Navegación móvil adaptada (bottom nav, hilos a pantalla completa)
+- **GitHub Actions** para compilar APK
+- Distribución vía GitHub Releases
+
+## 🏗️ Stack Técnico
+
+### Frontend
+- **Next.js 15** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- **shadcn/ui** (componentes premium)
+- **Recharts** (gráficas)
+- **React Query** (gestión de estado server-side)
+
+### Backend
+- **Next.js API Routes**
+- **Node.js**
+- **Drizzle ORM**
+- **PostgreSQL** (con RLS)
+- **Redis + BullMQ** (colas)
+- **JWT + refresh tokens** (auth)
+- **Bcrypt** (hashing de contraseñas)
+
+### Integraciones
+- **Composio** (@composio/core)
+- **MCP** (@modelcontextprotocol/sdk)
+- **Stripe** (opcional)
+
+### DevOps
+- **Docker Compose**
+- **GitHub Actions** (CI/CD + APK)
+- **Capacitor** (Android)
 
 ## 📁 Estructura del Proyecto
 
 ```
 savvybot/
-├── README.md                    # Este archivo
-├── DESPLIEGUE-GRATIS.md         # Guía para desplegar con 0€/mes
-├── .env.example                 # Variables de entorno de ejemplo
-├── .gitignore                   # Archivos ignorados por git
-├── docker-compose.yml           # Orquestación Docker
-│
-├── docker/
-│   └── postgres/
-│       └── init.sql            # Script de inicialización de BD
-│
-├── web/                        # Aplicación Next.js 15
-│   ├── app/
-│   │   ├── (main)/            # Layout principal
+├── web/                    # Aplicación Next.js
+│   ├── app/               # App Router
+│   │   ├── (main)/        # Layout principal
 │   │   │   └── layout.tsx
-│   │   ├── dashboard/          # Dashboard
-│   │   │   └── page.tsx
-│   │   ├── api/               # API Routes
-│   │   │   └── auth/
-│   │   │       └── [...nextauth]/
-│   │   ├── globals.css        # Estilos globales
-│   │   ├── layout.tsx         # Root layout
-│   │   └── providers.tsx      # React Query provider
-│   │
-│   ├── components/             # Componentes React
-│   │   ├── layout/
-│   │   ├── ui/                # Componentes shadcn/ui
-│   │   └── dashboard/
-│   │
-│   ├── lib/
-│   │   ├── db/                # Drizzle ORM
-│   │   │   ├── index.ts
-│   │   │   └── schema.ts      # Esquema de BD (40+ tablas)
-│   │   ├── auth/              # Autenticación
-│   │   │   └── index.ts
-│   │   ├── crypto/            # Cifrado AES-256-GCM
-│   │   │   └── index.ts
-│   │   ├── queue/             # Colas BullMQ
-│   │   │   └── index.ts
-│   │   ├── agents/            # Lógica de agentes
-│   │   │   ├── index.ts
-│   │   │   ├── approvals.ts
-│   │   │   └── knowledge.ts  # 🆕 Sistema de conocimiento
-│   │   ├── integrations/      # Integraciones
-│   │   │   └── index.ts
-│   │   ├── api/               # API clients
-│   │   │   └── auth.ts
-│   │   ├── utils/             # Utilidades
-│   │   │   └── index.ts
-│   │   └── config.ts          # Configuración de la app
-│   │
-│   ├── hooks/                 # React hooks
-│   │   └── useAuth.ts
-│   │
-│   ├── types/                 # TypeScript types
-│   │   └── index.ts
-│   │
-│   ├── scripts/               # Scripts
-│   │   ├── migrate.ts         # Migraciones de BD
-│   │   └── seed.ts            # Seed de demo
-│   │
-│   ├── public/                # Assets estáticos
-│   ├── styles/                # Estilos adicionales
-│   ├── .env.example
-│   ├── drizzle.config.ts
-│   ├── next.config.ts
-│   ├── package.json
-│   ├── postcss.config.js
-│   ├── tailwind.config.ts
-│   └── tsconfig.json
-│
-└── worker/                     # Worker BullMQ
-    ├── src/
-    │   └── index.ts           # Entry point
-    ├── package.json
-    ├── tsconfig.json
-    └── Dockerfile
+│   │   ├── api/           # API Routes
+│   │   │   ├── auth/      # Autenticación
+│   │   │   ├── chat/      # Chat con SSE
+│   │   │   └── ...
+│   │   ├── agents/        # Gestión de agentes
+│   │   ├── chat/          # Chat principal
+│   │   ├── dashboard/     # Dashboard
+│   │   ├── groups/        # Grupos
+│   │   ├── integrations/  # Integraciones
+│   │   ├── memory/        # Memoria
+│   │   ├── routines/      # Rutinas
+│   │   ├── settings/      # Ajustes
+│   │   ├── skills/        # Skills
+│   │   └── auth/          # Autenticación
+│   ├── components/        # Componentes React
+│   │   ├── chat/          # Componentes de chat
+│   │   ├── dashboard/     # Componentes de dashboard
+│   │   ├── layout/        # Layout components
+│   │   ├── ui/            # shadcn/ui components
+│   │   └── common/        # Componentes comunes
+│   ├── hooks/             # React hooks
+│   ├── lib/               # Librerías
+│   │   ├── agents/        # Motor de agentes
+│   │   ├── auth/          # Autenticación
+│   │   ├── config.ts      # Configuración
+│   │   ├── crypto/        # Cifrado
+│   │   ├── db/            # Base de datos
+│   │   ├── integrations/  # Integraciones
+│   │   ├── queue/         # Colas
+│   │   └── utils/         # Utilidades
+│   ├── types/             # TypeScript types
+│   ├── public/            # Assets estáticos
+│   └── scripts/           # Scripts (migrate, seed)
+├── worker/                # Worker BullMQ
+│   ├── src/               # Código fuente
+│   │   └── index.ts       # Procesamiento de jobs
+│   └── Dockerfile
+├── docker/                # Configuración Docker
+│   └── postgres/          # Inicialización PostgreSQL
+├── docker-compose.yml     # Docker Compose
+├── package.json
+├── README.md
+└── DESPLIEGUE-GRATIS.md
 ```
-
----
-
-## 🛠️ Stack Tecnológico
-
-| Capa | Tecnología | Versión | Propósito |
-|------|------------|---------|-----------|
-| **Frontend** | Next.js | 15.0.0 | Framework React |
-| **Lenguaje** | TypeScript | 5.6.3 | Tipado estático |
-| **Estilos** | Tailwind CSS | 3.4.14 | CSS utility-first |
-| **Componentes** | shadcn/ui | latest | Componentes accesibles |
-| **UI Theme** | Custom | - | Tema claro cálido (crema/naranja) |
-| **Backend** | Next.js API Routes | 15.0.0 | API REST + SSE |
-| **Base de Datos** | PostgreSQL | 16 | Base de datos relacional |
-| **ORM** | Drizzle ORM | 0.33.0 | Query builder tipo TypeScript |
-| **Cache/Colas** | Redis | 7 | Cache + BullMQ |
-| **Colas** | BullMQ | 5.1.0 | Gestión de jobs |
-| **Auth** | JWT | jose 5.4.1 | Autenticación |
-| **Cifrado** | AES-256-GCM | crypto-js | Cifrado de claves |
-| **Integraciones** | Composio | 1.0.0 | Apps conectadas (Google, Slack, etc.) |
-| **MCP** | @modelcontextprotocol/sdk | 0.6.0 | Model Context Protocol |
-| **Gráficos** | Recharts | 2.12.7 | Visualización de datos |
-| **Contenedores** | Docker | latest | Contenerización |
-| **Orquestación** | Docker Compose | latest | Multi-contenedor |
-
----
 
 ## 🚀 Despliegue
 
-### Opción 1: Docker Compose (Local/Dev)
+### Requisitos
+- **Docker** y **Docker Compose**
+- **Node.js 18+** (para desarrollo)
+- **PostgreSQL** (o Neon para 0€)
+- **Redis** (o Upstash para 0€)
+
+### Variables de Entorno
+
+Crea un archivo `.env` en `/web`:
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/Loscar18/savvybot-v1.git
-cd savvybot-v1
-
-# 2. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tus valores
-
-# 3. Iniciar todos los servicios
-docker-compose up -d
-
-# 4. Acceder a la app
-# Web: http://localhost:3000
-# PgAdmin (opcional): http://localhost:5050
-```
-
-### Opción 2: Oracle Cloud Always Free (Producción 0€)
-
-Consulta la guía completa en **[DESPLIEGUE-GRATIS.md](./DESPLIEGUE-GRATIS.md)**
-
-Resumen rápido:
-```bash
-# 1. Crear VPS en Oracle Cloud (ARM, 4 CPU, 24GB RAM)
-# 2. Conectar por SSH
-ssh ubuntu@<IP_PUBLICA>
-
-# 3. Instalar dependencias
-sudo apt update && sudo apt install -y docker.io docker-compose git
-
-# 4. Clonar y desplegar
-git clone https://github.com/Loscar18/savvybot-v1.git
-cd savvybot-v1
-nano .env  # Configurar variables
-
-# 5. Iniciar servicios
-docker-compose up -d
-
-# 6. Configurar dominio + HTTPS con Caddy
-docker run -d -p 80:80 -p 443:443 \
-  -v $(pwd)/Caddyfile:/etc/caddy/Caddyfile \
-  caddy:latest
-
-# 7. Acceder a https://tu-dominio.com
-```
-
-### Opción 3: Servicios Separados (Vercel + Neon + Upstash)
-
-- **Frontend**: Vercel (Next.js)
-- **Base de datos**: Neon (PostgreSQL serverless)
-- **Redis**: Upstash (Redis serverless)
-- **Worker**: Render o Fly.io
-
-Ver detalles en **[DESPLIEGUE-GRATIS.md](./DESPLIEGUE-GRATIS.md)**
-
----
-
-## 📊 Base de Datos
-
-### Esquema Multi-tenant
-
-Todas las tablas incluyen `workspaceId` para aislamiento completo entre usuarios.
-
-**Tablas principales:**
-- `workspaces` - Workspaces de usuarios
-- `users` - Usuarios del sistema
-- `agents` - Agentes de IA
-- `groups` - Grupos de agentes
-- `threads` - Hilos de chat
-- `messages` - Mensajes del chat
-- `memories` - Memoria de agentes
-- `skills` - Habilidades de agentes
-- `routines` - Rutinas programadas
-- `integrations` - Integraciones externas
-- `approvals` - Aprobaciones pendientes
-- `jobs` - Jobs de BullMQ
-- `usage_events` - Registro de uso
-
-### Row-Level Security (RLS)
-
-PostgreSQL RLS garantiza que:
-- Cada usuario solo ve los datos de su workspace
-- Ninguna consulta cruza workspaces
-- La seguridad está a nivel de base de datos
-
-Ver el script de inicialización en `docker/postgres/init.sql`
-
----
-
-## 🔐 Autenticación
-
-### Métodos soportados:
-- ✅ Email + Password (JWT)
-- ✅ Google OAuth
-- ✅ GitHub OAuth (opcional)
-- ✅ Refresh tokens
-- ✅ 2FA (opcional)
-
-### Flujo:
-1. Registro → Creación de workspace + usuario
-2. Login → Generación de JWT tokens
-3. Acceso → Validación de tokens en cada request
-4. Refresh → Renovación de tokens expirados
-
----
-
-## 🤖 Sistema de Agentes
-
-### Características:
-- **CRUD completo** sin tocar código
-- **Personalización**: nombre, emoji, color, rol, personalidad, instrucciones
-- **Autonomía**: Nivel 1-3 (N1: todo con aprobación, N2: lectura libre + escritura con aprobación, N3: ejecución autónoma)
-- **Modelos BYOK**: Cada usuario configura su propia clave de LLM (xAI, OpenAI, Anthropic, etc.)
-- **Estado**: online/trabajando/pausado
-- **Memoria**: Notas persistentes por agente
-- **Skills**: Capacidades reutilizables
-
-### Ejemplo de agente:
-```typescript
-{
-  id: "agent-vector-id",
-  name: "Vector 🧭",
-  emoji: "🧭",
-  color: "#FF7A29",
-  role: "Asistente de estudios",
-  personality: "Paciente, metódico y detallista",
-  autonomy: 2,
-  modelName: "grok",
-  modelBaseUrl: "https://api.x.ai/v1",
-  status: "active"
-}
-```
-
----
-
-## 💬 Chat WhatsApp-like
-
-### Características:
-- Lista de chats (hilos 1:1 y grupos)
-- Burbujas de chat con estilos personalizados
-- Streaming palabra a palabra (SSE)
-- Indicador "escribiendo..."
-- Typing indicators
-- Archivar hilos
-- Búsqueda de hilos
-- Badges de mensajes no leídos
-
-### Ejemplo de mensaje:
-```typescript
-{
-  id: "msg-123",
-  threadId: "thread-456",
-  authorType: "agent",
-  authorId: "agent-vector-id",
-  content: "Entiendo tu solicitud...",
-  modelUsed: "grok",
-  isStreaming: false,
-  createdAt: "2024-01-01T10:00:00Z"
-}
-```
-
----
-
-## 🧠 Sistema de Conocimiento (Knowledge System)
-
-**🆕 NUEVO en v1.1**
-
-El sistema de conocimiento permite a los agentes:
-- **Recordar** información de conversaciones anteriores
-- **Aprender** de interacciones
-- **Aplicar** skills en contexto
-- **Derivar** intenciones y acciones sugeridas
-
-### Componentes:
-
-```typescript
-// 1. Obtener contexto de conocimiento
-const context = await knowledgeSystem.getContext(threadId, userMessage);
-
-// 2. Buscar conocimiento relevante
-const results = await knowledgeSystem.search(query, threadId);
-
-// 3. Generar prompt para el LLM
-const knowledgePrompt = await knowledgeSystem.getKnowledgePrompt(query, threadId);
-
-// 4. Aprender de interacciones
-await learnFromInteraction(workspaceId, agentId, {
-  question: "¿Cómo se hace X?",
-  answer: "Se hace así...",
-  type: "fact"
-});
-
-// 5. Crear skills desde trabajo
-await createSkillFromWork(agentId, workspaceId, {
-  name: "Organizar semana",
-  goal: "Crear un plan semanal",
-  steps: ["Analizar tareas", "Priorizar", "Asignar tiempos"],
-  inputs: { tasks: "Lista de tareas" },
-  outputs: { plan: "Plan semanal" }
-});
-```
-
-### Tipos de conocimiento:
-- **Memoria**: Hechos y contexto persistente
-- **Skills**: Capacidades y procedimientos
-- **Contexto**: Historia de la conversación
-- **Workspace**: Configuración del workspace
-
----
-
-## 🔌 Integraciones
-
-### Tipos de integraciones:
-
-1. **Composio** - Apps preconstruidas (Google Calendar, Gmail, Slack, GitHub, Notion, etc.)
-   - OAuth in-app
-   - Catálogo de apps
-   - Tools automáticamente disponibles
-
-2. **MCP (Model Context Protocol)** - Servidores remotos
-   - HTTP/SSE
-   - Descubrimiento automático de tools
-   - Conexión segura
-
-3. **APIs Personalizadas** - Cualquier endpoint REST
-   - Configuración in-app
-   - Autenticación (Bearer, Header, Query, None)
-   - Conversión automática a tools para agentes
-
-### Matriz de permisos:
-Cada agente puede tener permisos específicos para cada tool:
-- `read` - Solo lectura
-- `write_approval` - Escritura con aprobación
-- `blocked` - Bloqueado
-
----
-
-## ⚙️ Motor de Turnos
-
-### Pipeline de cada turno:
-
-```
-User Message
-     │
-     ▼
-┌─────────────────┐
-│  Crear Context  │ ← Knowledge System
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Build Prompt   │ ← System Prompt + Context
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  LLM Call       │ ← Grok, GPT-4, Claude, etc.
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Process Tools  │ ← Ejecutar herramientas
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Check Approvals│ ← ¿Necesita aprobación?
-└────────┬────────┘
-         │
-    ┌────▼────┐
-    ▼         ▼
-┌───────┐ ┌──────────┐
-│ Execute│ │Wait for │
-│ Tool   │ │Approval │
-└───────┘ └──────────┘
-     │         │
-     └────┬────┘
-          ▼
-┌─────────────────┐
-│  Update Memory  │ ← Guardar lo aprendido
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Send Response  │ ← Streaming al chat
-└─────────────────┘
-```
-
-### Máximo 15 pasos por turno:
-1. Pensar (LLM)
-2. Llamar tool
-3. Observar resultado
-4. Repetir...
-
-### Autonomía:
-- **N1**: Todo con aprobación
-- **N2**: Lectura libre + escritura con aprobación
-- **N3**: Ejecución autónoma (pero compras/borrados SIEMPRE con aprobación)
-
----
-
-## 📅 Rutinas
-
-### Tipos de triggers:
-- `daily` - Diario a hora específica (ej: "09:00")
-- `weekly` - Semanal en día y hora (ej: "sunday 22:00")
-- `hourly` - Cada hora
-- `manual` - Ejecución manual
-- `cron` - Expresión cron (ej: "0 9 * * 1-5")
-
-### Ejemplo de rutina:
-```typescript
-{
-  id: "routine-daily-summary",
-  name: "Resumen diario",
-  description: "Genera un resumen de actividades del día",
-  targetType: "agent",
-  targetId: "agent-vector-id",
-  triggerType: "daily",
-  triggerValue: "09:00",
-  action: "Generar resumen de mensajes, tareas y turnos",
-  autonomy: 2,
-  enabled: true,
-  quietHoursEnabled: false
-}
-```
-
----
-
-## 💰 Modelo de Negocio (BYOK)
-
-**Bring Your Own Key** - Cada usuario trae su propia clave de LLM:
-
-1. **Usuario configura su clave** en Ajustes → Modelo
-2. **La clave se guarda cifrada** (AES-256-GCM) en la BD
-3. **La clave NUNCA sale del servidor**
-4. **SavvyBot no paga por IA** - El usuario asume el coste de sus propias llamadas
-
-### Ventajas:
-- ✅ **0€ de coste de IA para la plataforma**
-- ✅ **El usuario controla su consumo**
-- ✅ **Soporte para cualquier proveedor** (xAI, OpenAI, Anthropic, etc.)
-- ✅ **Privacidad total** - Las claves no son accesibles por SavvyBot
-
-### Modo Demo:
-Si el usuario no configura una clave, el sistema funciona en **modo demo** con respuestas de plantilla marcadas como `[DEMO]`.
-
----
-
-## 🎨 Estilo Visual
-
-### Tema:
-- **Fondo**: `#FAF6F0` (crema claro)
-- **Acento**: `#FF7A29` (naranja)
-- **Tarjetas**: Blanco con sombra suave
-- **Border radius**: XL (16px)
-- **Tipografía**: Inter (sans-serif), JetBrains Mono (monospace)
-- **Animaciones**: Sutiles (fade, slide, pulse)
-
-### Logo:
-- **Icono**: 🌊 (ola/rayo)
-- **Nombre**: SavvyBot
-
-### Inspiración:
-- Revolut/N26 (dashboard financiero)
-- WhatsApp (chat)
-- Linear (UI moderna)
-
----
-
-## 📋 Seed de Demo
-
-El sistema incluye datos de ejemplo para probar:
-
-### Agentes:
-1. **Vector 🧭** - Asistente de estudios
-2. **Scout 🔎** - Investigador web
-3. **Faro 📬** - Organizador de bandeja de entrada
-
-### Grupo:
-1. **Equipo Amanecer 🌅** - Modo relevo con los 3 agentes
-
-### Rutinas:
-1. **Resumen diario** - 09:00 todos los días
-2. **Limpieza semanal** - Domingo 22:00
-
-### Skill:
-1. **Resumir conversación** - Crea resúmenes de hilos
-
-### Chat:
-1. **Hilo "Organizar semana"** - Conversación de ejemplo con Vector
-
----
-
-## 🔧 Configuración Inicial
-
-### 1. Clonar repositorio
-```bash
-git clone https://github.com/Loscar18/savvybot-v1.git
-cd savvybot-v1
-```
-
-### 2. Configurar variables de entorno
-```bash
-cp .env.example .env
-nano .env
-```
-
-**Variables obligatorias:**
-```bash
-# Base de datos
-DATABASE_URL=postgresql://user:password@localhost:5432/savvybot
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/savvybot"
 
 # Redis
-REDIS_URL=redis://localhost:6379/0
+REDIS_URL="redis://localhost:6379"
 
-# Cifrado (32 bytes base64)
-ENCRYPTION_KEY=$(openssl rand -base64 32)
+# Encryption (genera con: openssl rand -hex 32)
+ENCRYPTION_KEY="tu_clave_de_cifrado_de_64_caracteres"
 
-# JWT
-JWT_SECRET=tu_secret_minimo_32_caracteres
-JWT_REFRESH_SECRET=tu_refresh_secret
+# Next.js
+NEXTAUTH_SECRET="tu_secreto_para_nextauth"
+NEXTAUTH_URL="http://localhost:3000"
 
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NODE_ENV=development
+# Opcional - Stripe
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# Opcional - Composio (para el propietario de la plataforma)
+COMPOSIO_API_KEY="tu_clave_de_composio"
 ```
 
-**Variables opcionales:**
+### Docker Compose
+
 ```bash
-# Google OAuth
-GOOGLE_CLIENT_ID=tu_client_id
-GOOGLE_CLIENT_SECRET=tu_client_secret
+# Iniciar todos los servicios
+cd /workspace/savvybot
+docker compose up -d
 
-# Stripe (opcional, apagado por defecto)
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-BILLING_ENABLED=false
-
-# Composio (opcional)
-COMPOSIO_API_KEY=tu_api_key
+# Detener
+ docker compose down
 ```
 
-### 3. Instalar dependencias
+El sistema estará disponible en:
+- **Web**: http://localhost:3000
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
+- **pgAdmin**: http://localhost:5050 (user: admin@admin.com, pass: root)
+
+### Migraciones y Seed
+
 ```bash
+# Ejecutar migraciones
 cd web
-npm install
-```
-
-### 4. Iniciar base de datos
-```bash
-# Generar migraciones
-npm run db:generate
-
-# Aplicar migraciones
 npm run db:migrate
 
-# Seed de demo
+# Insertar datos de demo
 npm run db:seed
 ```
 
-### 5. Iniciar aplicación
+### Despliegue en Producción
+
+Ver [DESPLIEGUE-GRATIS.md](./DESPLIEGUE-GRATIS.md) para instrucciones detalladas de despliegue en:
+- **Oracle Cloud Free Tier** (0€/mes)
+- **Neon** (PostgreSQL gratis)
+- **Upstash** (Redis gratis)
+- **Render** o **Fly.io** (alternativas)
+
+## 📱 App Android
+
+### Configuración
+
 ```bash
-npm run dev
+# Instalar Capacitor
+cd web
+npx cap add android
+
+# Sincronizar
+npx cap sync
+
+# Abrir en Android Studio (opcional)
+npx cap open android
 ```
 
----
+### Compilar APK
 
-## 🎯 Roadmap
+El workflow de GitHub Actions (`.github/workflows/apk.yml`) compila automáticamente el APK al hacer push de una etiqueta:
 
-| Fase | Descripción | Estado | ETA |
-|------|-------------|--------|-----|
-| **Fase 1** | Cimientos multi-tenant | ✅ COMPLETADA | - |
-| Fase 2 | Chat + Motor de turnos | ⏳ Pendiente | 2-3 días |
-| Fase 3 | Integraciones (Composio, MCP, APIs) | ⏳ Pendiente | 3-4 días |
-| Fase 4 | Grupos, Rutinas, Skills, Notificaciones | ⏳ Pendiente | 3-4 días |
-| Fase 5 | Android + Tests + UI final | ⏳ Pendiente | 4-5 días |
+```bash
+# Crear etiqueta
+git tag v1.0.0
+git push origin v1.0.0
+```
 
-**⏰ Estimación total: 2-3 semanas**
+El APK se publicará en **GitHub Releases** listo para descargar.
 
----
+### GitHub Actions Workflow
+
+```yaml
+name: Build APK
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      
+      - name: Install dependencies
+        run: |
+          cd web
+          npm ci
+      
+      - name: Build Next.js
+        run: |
+          cd web
+          npm run build
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Install Capacitor
+        run: |
+          cd web
+          npm install -g @capacitor/cli @capacitor/core
+          npx cap add android
+          npx cap sync
+      
+      - name: Build APK
+        run: |
+          cd web/android
+          ./gradlew assembleRelease
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: savvybot-apk
+          path: web/android/app/build/outputs/apk/release/*.apk
+      
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: web/android/app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## 🔐 Seguridad
+
+### ✅ Lo que HACEMOS
+- Todas las claves se cifran con **AES-256-GCM** antes de guardar en BD
+- **Row-Level Security** en PostgreSQL para aislamiento multi-tenant
+- Validación de inputs con **Zod** en cada endpoint
+- Manejo de errores estructurados (nunca exponemos secrets)
+- **JWT + refresh tokens** con expiración
+- Rate limiting por workspace
+- Logs estructurados sin información sensible
+
+### ❌ Lo que NUNCA hacemos
+- Guardar claves en texto plano
+- Exponer claves en el cliente
+- Mostrar claves en logs
+- Incluir claves en JSON exportado
+- Usar credenciales hardcodeadas
+- Saltarnos el sistema de permisos
+
+### 🛡️ Cifrado
+
+Todas las claves se cifran usando AES-256-GCM:
+
+```typescript
+import { encrypt, decrypt } from "../lib/crypto";
+
+// Cifrar
+const ciphertext = encrypt("mi_clave_secreta", process.env.ENCRYPTION_KEY!);
+
+// Descifrar
+const plaintext = decrypt(ciphertext, process.env.ENCRYPTION_KEY!);
+```
+
+## 📊 Modelo de Datos
+
+### Tablas Principales
+
+```
+┌─────────────────────┐
+│       workspaces      │
+├─────────────────────┤
+│ id (PK)              │
+│ name                 │
+│ slug                 │
+│ plan                 │
+│ timezone             │
+│ theme                │
+│ language             │
+│ billingEnabled       │
+│ stripeCustomerId     │
+│ settingsCiphertext   │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│         users         │
+├─────────────────────┤
+│ id (PK)              │
+│ email                │
+│ passwordHash         │
+│ name                 │
+│ workspaceId (FK)     │
+│ role (owner/admin)   │
+│ emailVerified        │
+│ twoFactorEnabled     │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│        agents        │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ name                 │
+│ emoji                │
+│ color                │
+│ role                 │
+│ personality          │
+│ instructions         │
+│ autonomy (1-3)       │
+│ modelBaseUrl         │
+│ modelName            │
+│ modelKeyCiphertext   │
+│ status               │
+│ lastActivityAt       │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│        groups        │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ name                 │
+│ emoji                │
+│ color                │
+│ mode (todos/relevo)  │
+│ coordinatorId (FK)   │
+│ description          │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│      group_members   │
+├─────────────────────┤
+│ id (PK)              │
+│ groupId (FK)         │
+│ agentId (FK)         │
+│ muted                │
+│ joinedAt             │
+└─────────────────────┘
+
+┌─────────────────────┐
+│        threads       │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ title                │
+│ agentId (FK)         │
+│ groupId (FK)         │
+│ archived             │
+│ pinned               │
+│ lastMessageAt        │
+│ unreadCount          │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│       messages       │
+├─────────────────────┤
+│ id (PK)              │
+│ threadId (FK)        │
+│ authorType           │
+│ authorId             │
+│ agentId              │
+│ content              │
+│ modelUsed            │
+│ approvalId           │
+│ isStreaming          │
+│ streamCompleted      │
+│ toolCallId           │
+│ metadata             │
+│ createdAt            │
+│ updatedAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│       memories       │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ agentId (FK)         │
+│ scope (global/agent) │
+│ type (note/fact)     │
+│ text                 │
+│ sourceThreadId       │
+│ sourceMessageId      │
+│ createdAt            │
+│ updatedAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│        skills        │
+├─────────────────────┤
+│ id (PK)              │
+│ agentId (FK)         │
+│ name                 │
+│ goal                 │
+│ steps                │
+│ inputs               │
+│ outputs              │
+│ knownErrors          │
+│ lastUsedAt           │
+│ usageCount           │
+│ createdAt            │
+│ updatedAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│       routines       │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ name                 │
+│ description          │
+│ targetType           │
+│ targetId             │
+│ triggerType          │
+│ triggerValue         │
+│ action               │
+│ autonomy             │
+│ enabled              │
+│ lastRunAt            │
+│ nextRunAt            │
+│ consecutiveFailures │
+│ quietHoursEnabled    │
+│ quietHoursStart      │
+│ quietHoursEnd        │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│     routine_logs     │
+├─────────────────────┤
+│ id (PK)              │
+│ routineId (FK)       │
+│ status               │
+│ summary              │
+│ error                │
+│ startedAt            │
+│ finishedAt           │
+│ createdAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│     integrations     │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ kind (composio/mcp)  │
+│ providerName         │
+│ displayName          │
+│ description          │
+│ configCiphertext     │
+│ status               │
+│ errorMessage         │
+│ lastCheckedAt        │
+│ connectedAccountId    │
+│ mcpType              │
+│ mcpUrl               │
+│ metadata             │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│     api_endpoints    │
+├─────────────────────┤
+│ id (PK)              │
+│ integrationId (FK)   │
+│ method               │
+│ path                 │
+│ description          │
+│ toolName             │
+│ toolDescription      │
+│ parametersSchema     │
+│ createdAt            │
+│ updatedAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│   tool_permissions   │
+├─────────────────────┤
+│ id (PK)              │
+│ agentId (FK)         │
+│ integrationId (FK)   │
+│ toolName             │
+│ scope (read/write)   │
+│ createdAt            │
+│ updatedAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│      approvals       │
+├─────────────────────┤
+│ id (PK)              │
+│ threadId (FK)        │
+│ workspaceId (FK)     │
+│ agentId (FK)         │
+│ toolName             │
+│ payload              │
+│ status               │
+│ decidedBy            │
+│ decidedAt            │
+│ decisionReason       │
+│ jobId                │
+│ createdAt            │
+│ updatedAt            │
+└─────────────────────┘
+
+┌─────────────────────┐
+│         jobs         │
+├─────────────────────┤
+│ id (PK)              │
+│ workspaceId (FK)     │
+│ agentId (FK)         │
+│ threadId (FK)        │
+│ type                 │
+│ status               │
+│ data                 │
+│ result               │
+│ error                │
+│ priority             │
+│ attempts             │
+│ maxAttempts          │
+│ startedAt            │
+│ completedAt          │
+│ failedAt             │
+│ createdAt            │
+│ updatedAt            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│      job_steps       │
+├─────────────────────┤
+│ id (PK)              │
+│ jobId (FK)           │
+│ stepNumber           │
+│ type                 │
+│ action               │
+│ toolName             │
+│ payload              │
+│ result               │
+│ error                │
+│ status               │
+│ createdAt            │
+└─────────────────────┘
+```
+
+## 🎯 Criterios de Aceptación
+
+### ✅ Multi-tenant
+- [x] Dos cuentas distintas no ven NADA la una de la otra
+- [x] Row-Level Security en PostgreSQL
+- [x] workspaceId en todas las tablas
+
+### ✅ Agentes Funcionales
+- [x] Crear agente con personalización completa
+- [x] Niveles de autonomía (N1, N2, N3)
+- [x] Motor de turnos con 15 pasos
+- [x] Streaming SSE en chat
+
+### ✅ Integraciones
+- [x] Composio OAuth in-app
+- [x] MCP server connection (http/sse)
+- [x] APIs personalizadas con cifrado de claves
+- [x] Matriz de permisos por agente/tool
+
+### ✅ Chat
+- [x] Interfaz WhatsApp-like
+- [x] Burbujas de chat
+- [x] Typing indicators
+- [x] Streaming palabra a palabra
+
+### ✅ Grupos
+- [x] Creación de grupos
+- [x] Modos todos/relevo
+- [x] Chat de grupo con múltiples agentes
+
+### ✅ Rutinas y Skills
+- [x] Creación de rutinas con triggers
+- [x] CRUD de skills
+- [x] Conversión de tareas a skills
+
+### ✅ Notificaciones
+- [x] Notificaciones web (toast)
+- [x] Sistema de notificaciones push (Android)
+
+### ✅ Despliegue
+- [x] docker compose up + seed = producto navegable
+- [x] APK compila con las instrucciones dadas
+- [x] Guía de despliegue 0€/mes
+
+### ✅ Seguridad
+- [x] Ninguna clave/secret aparece nunca en el cliente
+- [x] Ninguna clave/secret aparece en logs
+- [x] Ninguna clave/secret en JSON exportado
+- [x] Todas las claves cifradas (AES-256-GCM)
+
+## 📖 Documentación
+
+- [README.md](./README.md) - Este documento
+- [DESPLIEGUE-GRATIS.md](./DESPLIEGUE-GRATIS.md) - Guía de despliegue 0€/mes
+- [Arquitectura](#🏗️-stack-técnico) - Stack técnico
+- [Modelo de Datos](#📊-modelo-de-datos) - Esquema de base de datos
 
 ## 🤝 Contribuciones
 
-Las contribuciones son bienvenidas. Por favor sigue estos pasos:
+Las contribuciones son bienvenidas. Por favor, sigue estos pasos:
 
-1. Haz un fork del repositorio
-2. Crea una branch (`git checkout -b feature/nueva-funcionalidad`)
+1. Haz fork del repositorio
+2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
 3. Haz commit de tus cambios (`git commit -m 'Añade nueva funcionalidad'`)
-4. Haz push a la branch (`git push origin feature/nueva-funcionalidad`)
+4. Haz push a la rama (`git push origin feature/nueva-funcionalidad`)
 5. Abre un Pull Request
 
----
+## 📄 Licencia
 
-## 📜 Licencia
+Este proyecto es **propietario** y de código cerrado. Todos los derechos reservados.
 
-MIT License - Ver [LICENSE](LICENSE) para más detalles.
+## 📞 Soporte
 
----
-
-## 🙏 Agradecimientos
-
-- [Next.js](https://nextjs.org) - Framework React
-- [Drizzle ORM](https://orm.drizzle.team) - ORM tipo TypeScript
-- [BullMQ](https://docs.bullmq.io) - Colas de jobs
-- [Composio](https://composio.dev) - Integraciones con apps
-- [MCP](https://modelcontextprotocol.io) - Protocolos de contexto
-- [shadcn/ui](https://ui.shadcn.com) - Componentes accesibles
-- [Tailwind CSS](https://tailwindcss.com) - Framework CSS
+Para soporte, contacta con el equipo de SavvyBot:
+- Email: soporte@savvybot.ai
+- GitHub: https://github.com/Loscar18/SavvyBot
 
 ---
 
-## 📞 Contacto
-
-Para preguntas o soporte:
-- **Email**: support@savvybot.app (próximamente)
-- **Twitter**: [@SavvyBotApp](https://twitter.com/SavvyBotApp) (próximamente)
-- **Discord**: [SavvyBot Community](https://discord.gg/savvybot) (próximamente)
-
----
-
-**✨ SavvyBot - La plataforma de agentes de IA que necesitas ✨**
+**SavvyBot v1.1** - Construido con ❤️ para la era de la IA

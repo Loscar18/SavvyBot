@@ -1,0 +1,18 @@
+// SavvyBot Android Project Settings
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "SavvyBot"
+include ":app"

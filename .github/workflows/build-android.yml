@@ -1,0 +1,227 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g., 1.0.0)"
+        required: false
+        default: "1.0.0"
+
+env:
+  NODE_VERSION: "20"
+  JAVA_VERSION: "17"
+  ANDROID_SDK_VERSION: "34"
+  ANDROID_NDK_VERSION: "26.1.10559344"
+  ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
+  ANDROID_EMULATOR_VERSION: "31.3.14"
+  ANDROID_PLATFORM_TOOLS_VERSION: "31.0.3"
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            web/package-lock.json
+            web/package.json
+            package.json
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: "gradle"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          sdk-version: ${{ env.ANDROID_SDK_VERSION }}
+          ndk-version: ${{ env.ANDROID_NDK_VERSION }}
+          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+          emulator-version: ${{ env.ANDROID_EMULATOR_VERSION }}
+          platform-tools-version: ${{ env.ANDROID_PLATFORM_TOOLS_VERSION }}
+          accept-licenses: yes
+
+      - name: Cache Android dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.android
+            ~/.gradle
+            android/.gradle
+            android/app/.gradle
+          key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+          cd web && npm install
+          cd ../worker && npm install
+
+      - name: Build web app
+        run: |
+          cd web
+          npm run build
+          cd ..
+
+      - name: Set up Capacitor
+        run: |
+          npm install -g @capacitor/cli @capacitor/core
+          npx cap add android
+
+      - name: Sync Capacitor
+        run: |
+          cd web
+          npx cap sync android
+          cd ..
+
+      - name: Build Android APK (Debug)
+        if: github.event_name == 'pull_request'
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Build Android APK (Release)
+        if: github.event_name != 'pull_request'
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK files
+        run: |
+          # Get version from tag or input
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${{ github.ref_name }}
+          elif [ "${{ github.event.inputs.version }}" != "" ]; then
+            VERSION=${{ github.event.inputs.version }}
+          else
+            VERSION="1.0.0"
+          fi
+          
+          # Rename debug APK
+          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/SavvyBot-${VERSION}-debug.apk
+          fi
+          
+          # Rename release APK
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/SavvyBot-${VERSION}-release.apk
+          fi
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: savvybot-apk
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            android/app/build/outputs/apk/release/SavvyBot-*.apk
+          generate_release_notes: true
+          prerelease: false
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to GitHub Releases (manual trigger)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: SavvyBot v${{ github.event.inputs.version }}
+          files: |
+            android/app/build/outputs/apk/release/SavvyBot-*.apk
+          generate_release_notes: true
+          prerelease: false
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Run Android tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: build
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          sdk-version: ${{ env.ANDROID_SDK_VERSION }}
+          accept-licenses: yes
+
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: savvybot-apk
+
+      - name: Run unit tests
+        run: |
+          cd android
+          ./gradlew test --no-daemon --stacktrace
+
+  deploy:
+    name: Deploy to Firebase App Distribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build, test]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: savvybot-apk
+
+      - name: Deploy to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          groups: testers
+          file: SavvyBot-*.apk
+          releaseNotes: "Automatic build from GitHub Actions"

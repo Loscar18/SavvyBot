@@ -1,0 +1,150 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.capacitor.android'
+}
+
+android {
+    namespace 'com.savvybot.app'
+    
+    compileSdk 34
+    
+    defaultConfig {
+        applicationId "com.savvybot.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        
+        // Enable multidex for large apps
+        multiDexEnabled true
+        
+        // Enable Jetifier for older libraries
+        jetifierEnabled true
+        
+        // Enable R8 for code shrinking
+        shrinkResources true
+        minifyEnabled true
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+    }
+    
+    buildTypes {
+        release {
+            // Configure signing for release builds
+            // Uncomment and configure when ready for production
+            /*
+            signingConfig signingConfigs.release
+            */
+            
+            // Enable minification for release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        
+        debug {
+            // Enable debug logging
+            debuggable true
+            
+            // Disable minification for debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+    
+    // Configure signing (for production)
+    /*
+    signingConfigs {
+        release {
+            storeFile file('release.keystore')
+            storePassword System.getenv('ANDROID_STORE_PASSWORD')
+            keyAlias System.getenv('ANDROID_KEY_ALIAS')
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+        }
+    }
+    */
+    
+    // Kotlin options
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    
+    // Packaging options
+    packaging {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES']
+            excludes += ['META-INF/LICENSE']
+            excludes += ['META-INF/LICENSE.txt']
+            excludes += ['META-INF/license.txt']
+            excludes += ['META-INF/NOTICE']
+            excludes += ['META-INF/NOTICE.txt']
+            excludes += ['META-INF/notice.txt']
+            excludes += ['META-INF/ASL2.0']
+        }
+    }
+    
+    // Build features
+    buildFeatures {
+        viewBinding true
+        compose false
+    }
+}
+
+// Capacitor configuration
+capacitor {
+    // Customize the Android app
+    appId = 'com.savvybot.app'
+    appName = 'SavvyBot'
+    webDir = '../../web/out'
+    bundledWebRuntime = false
+    
+    // Enable push notifications
+    pushNotifications = true
+    
+    // Enable background processing
+    backgroundProcessing = true
+    
+    // Enable cleartext traffic for development
+    allowMixedContent = false
+}
+
+// Dependencies
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    
+    // Capacitor
+    implementation "com.capacitorjs:capacitor-android:$capacitorAndroidVersion"
+    implementation "com.capacitorjs:capacitor-app:$capacitorAndroidVersion"
+    implementation "com.capacitorjs:capacitor-network:$capacitorAndroidVersion"
+    implementation "com.capacitorjs:capacitor-preferences:$capacitorAndroidVersion"
+    implementation "com.capacitorjs:capacitor-push-notifications:$capacitorAndroidVersion"
+    
+    // AndroidX
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.webkit:webkit:1.10.0'
+    
+    // Coroutines
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+    
+    // Lifecycle
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.7.0'
+    
+    // Activity
+    implementation 'androidx.activity:activity-ktx:1.8.2'
+    implementation 'androidx.fragment:fragment-ktx:1.7.0'
+    
+    // Multidex
+    implementation 'androidx.multidex:multidex:2.0.1'
+    
+    // Test
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'com.google.truth:truth:1.1.3'
+}

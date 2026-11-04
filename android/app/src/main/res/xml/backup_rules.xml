@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Include all shared preferences -->
+    <include domain="sharedpref" path="." />
+    
+    <!-- Include Capacitor preferences -->
+    <include domain="sharedpref" path="capacitor" />
+    
+    <!-- Include all files in the app directory -->
+    <include domain="file" path="app_webview" />
+</full-backup-content>

@@ -1,0 +1,249 @@
+name: Deploy SavvyBot
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy (staging/production)"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  DOCKER_COMPOSE_VERSION: "v2.24.5"
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd web && npm install
+          cd ../worker && npm install
+
+      - name: Run lint
+        run: |
+          cd web && npm run lint
+
+      - name: Run unit tests
+        run: |
+          cd web && npm test
+
+      - name: Build web app
+        run: |
+          cd web && npm run build
+
+  build-docker:
+    name: Build Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: test
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.web
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            loscar18/savvybot-web:latest
+            loscar18/savvybot-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.worker
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            loscar18/savvybot-worker:latest
+            loscar18/savvybot-worker:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-docker
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.savvybot.com
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Oracle Cloud
+        uses: oracle-actions/oci-deploy-action@v1
+        with:
+          oci-cli-version: "3.35.1"
+          oci-config: ${{ secrets.OCI_CONFIG }}
+          compartment-id: ${{ secrets.OCI_COMPARTMENT_ID }}
+          region: ${{ secrets.OCI_REGION }}
+          
+          # Deploy using Docker Compose
+          deploy-command: |
+            docker compose -f docker-compose.yml pull
+            docker compose -f docker-compose.yml up -d --force-recreate
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: deploy-staging
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: https://savvybot.com
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Oracle Cloud
+        uses: oracle-actions/oci-deploy-action@v1
+        with:
+          oci-cli-version: "3.35.1"
+          oci-config: ${{ secrets.OCI_CONFIG }}
+          compartment-id: ${{ secrets.OCI_COMPARTMENT_ID }}
+          region: ${{ secrets.OCI_REGION }}
+          
+          # Deploy using Docker Compose
+          deploy-command: |
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --force-recreate
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    needs: test
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: "gradle"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          sdk-version: "34"
+          accept-licenses: yes
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd web && npm install
+
+      - name: Build web app
+        run: |
+          cd web && npm run build
+
+      - name: Set up Capacitor
+        run: |
+          npm install -g @capacitor/cli @capacitor/core
+          npx cap add android
+          cd web && npx cap sync android
+
+      - name: Build Android APK
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          VERSION=${{ github.ref_name }}
+          mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/SavvyBot-${VERSION}.apk
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android/app/build/outputs/apk/release/SavvyBot-*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Send notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [deploy-staging, deploy-production, build-android]
+    if: always()
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Send Discord notification
+        if: success()
+        uses: Ilshidur/action-discord@0.6.5
+        with:
+          args: "✅ SavvyBot deployed successfully! Version ${{ github.ref_name }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+      - name: Send Discord error notification
+        if: failure()
+        uses: Ilshidur/action-discord@0.6.5
+        with:
+          args: "❌ SavvyBot deployment failed! See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SavvyBot Color Theme -->
+    
+    <!-- Primary colors (Orange accent) -->
+    <color name="colorPrimary">#FF7A29</color>
+    <color name="colorPrimaryDark">#E6691A</color>
+    <color name="colorPrimaryLight">#FF984C</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+    
+    <!-- Secondary colors -->
+    <color name="colorAccent">#FF7A29</color>
+    <color name="colorSecondary">#FF7A29</color>
+    <color name="colorOnSecondary">#FFFFFF</color>
+    
+    <!-- Background colors -->
+    <color name="colorBackground">#FAF6F0</color>
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorOnBackground">#1E1E1E</color>
+    <color name="colorOnSurface">#1E1E1E</color>
+    
+    <!-- Foreground colors -->
+    <color name="colorForeground">#1E1E1E</color>
+    <color name="colorForegroundSecondary">#666666</color>
+    
+    <!-- Error colors -->
+    <color name="colorError">#FF5252</color>
+    <color name="colorOnError">#FFFFFF</color>
+    
+    <!-- Warning colors -->
+    <color name="colorWarning">#FFC107</color>
+    <color name="colorOnWarning">#1E1E1E</color>
+    
+    <!-- Success colors -->
+    <color name="colorSuccess">#4CAF50</color>
+    <color name="colorOnSuccess">#FFFFFF</color>
+    
+    <!-- Info colors -->
+    <color name="colorInfo">#2196F3</color>
+    <color name="colorOnInfo">#FFFFFF</color>
+    
+    <!-- Text colors -->
+    <color name="textPrimary">#1E1E1E</color>
+    <color name="textSecondary">#666666</color>
+    <color name="textTertiary">#999999</color>
+    <color name="textWhite">#FFFFFF</color>
+    
+    <!-- Border colors -->
+    <color name="borderColor">#E0E0E0</color>
+    <color name="borderLight">#F0F0F0</color>
+    
+    <!-- Divider colors -->
+    <color name="dividerColor">#E0E0E0</color>
+    
+    <!-- Shadow colors -->
+    <color name="shadowColor">#000000</color>
+    <color name="shadowLight">#999999</color>
+    
+    <!-- Overlay colors -->
+    <color name="overlayDark">#80000000</color>
+    <color name="overlayLight">#40FFFFFF</color>
+</resources>

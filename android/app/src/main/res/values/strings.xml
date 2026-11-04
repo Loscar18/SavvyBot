@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SavvyBot</string>
+    <string name="app_version">1.0.0</string>
+    
+    <!-- Launch screen -->
+    <string name="launch_screen_title">SavvyBot</string>
+    <string name="launch_screen_subtitle">Cargando...</string>
+    
+    <!-- Permissions -->
+    <string name="permission_notification_title">Permisos de notificación</string>
+    <string name="permission_notification_message">SavvyBot necesita permisos para enviar notificaciones sobre aprobaciones, tareas completadas y otros eventos importantes.</string>
+    <string name="permission_notification_allow">Permitir</string>
+    <string name="permission_notification_deny">Denegar</string>
+    
+    <!-- Errors -->
+    <string name="error_no_internet">No hay conexión a Internet</string>
+    <string name="error_server">Error del servidor</string>
+    <string name="error_unknown">Error desconocido</string>
+    <string name="error_retry">Reintentar</string>
+    
+    <!-- Actions -->
+    <string name="action_ok">Aceptar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_yes">Sí</string>
+    <string name="action_no">No</string>
+    <string name="action_back">Atrás</string>
+    <string name="action_next">Siguiente</string>
+    
+    <!-- Notifications -->
+    <string name="notification_channel_general">General</string>
+    <string name="notification_channel_approvals">Aprobaciones</string>
+    <string name="notification_channel_tasks">Tareas</string>
+    <string name="notification_channel_messages">Mensajes</string>
+    
+    <!-- App info -->
+    <string name="about_title">Acerca de SavvyBot</string>
+    <string name="about_description">SavvyBot es una plataforma de agentes de IA que te permite crear, personalizar y gestionar agentes como si fuera WhatsApp. Conecta herramientas externas, configura rutinas automatizadas y colabora con tus agentes en tiempo real.</string>
+    <string name="about_version">Versión</string>
+    <string name="about_website">Sitio web</string>
+    <string name="about_privacy">Política de privacidad</string>
+    <string name="about_terms">Términos de servicio</string>
+</resources>

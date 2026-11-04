@@ -1,0 +1,60 @@
+{
+  "name": "savvybot",
+  "version": "1.1.0",
+  "description": "SavvyBot - WhatsApp for AI Agents Platform",
+  "main": "worker/src/index.ts",
+  "scripts": {
+    "dev": "cd web && npm run dev",
+    "build": "cd web && npm run build",
+    "start": "cd web && npm run start",
+    "lint": "cd web && npm run lint",
+    "db:migrate": "cd web && npx tsx scripts/migrate.ts",
+    "db:seed": "cd web && npx tsx scripts/seed.ts",
+    "db:studio": "cd web && npx drizzle-kit studio",
+    "worker": "cd worker && npx tsx src/index.ts",
+    "worker:dev": "cd worker && nodemon src/index.ts",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose build",
+    "docker:restart": "docker compose restart",
+    "docker:logs:web": "docker compose logs -f web",
+    "docker:logs:worker": "docker compose logs -f worker",
+    "cap:add:android": "npx cap add android",
+    "cap:copy": "npx cap copy",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "android:build": "cd android && ./gradlew assembleRelease",
+    "android:install": "adb install android/app/build/outputs/apk/release/app-release.apk",
+    "test": "cd web && npm test",
+    "test:e2e": "cd web && npm run test:e2e"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "chat",
+    "whatsapp",
+    "multi-tenant",
+    "platform"
+  ],
+  "author": "Loscar18",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "web",
+    "worker"
+  ],
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "nodemon": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/network": "^6.0.0",
+    "@capacitor/preferences": "^6.0.0",
+    "@capacitor/push-notifications": "^6.0.0"
+  }
+}
