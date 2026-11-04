@@ -2,163 +2,267 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { User, Session } from "../types";
-import { getCurrentUser, login, logout, register, refreshSession } from "../lib/api/auth";
+import { User, Session, AuthState } from "../types";
 
-// Auth context type
-export interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  error: string | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  refresh: () => Promise<boolean>;
-  clearError: () => void;
-}
+// Mock user for development
+const mockUser: User = {
+  id: "user-1",
+  email: "demo@savvybot.ai",
+  name: "Usuario Demo",
+  workspaceId: "workspace-1",
+  role: "owner",
+  emailVerified: true,
+  twoFactorEnabled: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
 
-// Custom hook for authentication
-export function useAuth(): AuthContextType {
+// Mock workspace
+const mockWorkspace = {
+  id: "workspace-1",
+  name: "Mi Espacio de Trabajo",
+  slug: "demo-workspace",
+  plan: "pro",
+  timezone: "Europe/Madrid",
+  theme: "light",
+  language: "es",
+  billingEnabled: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+export function useAuth() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    session: null,
+    loading: true,
+    error: null,
+  });
+
+  // Check if we're in development mode
+  const isDev = process.env.NODE_ENV === "development";
 
   // Initialize auth state
   useEffect(() => {
-    async function initialize() {
+    const initialize = async () => {
       try {
-        const { user: currentUser, session: currentSession } = await getCurrentUser();
-        setUser(currentUser);
-        setSession(currentSession);
-      } catch {
-        // Not authenticated
-      } finally {
-        setLoading(false);
+        // In development, use mock user
+        if (isDev) {
+          setState({
+            user: mockUser,
+            session: {
+              id: "session-1",
+              userId: "user-1",
+              token: "mock-token",
+              refreshToken: "mock-refresh-token",
+              expiresAt: new Date(Date.now() + 86400000),
+              createdAt: new Date(),
+            },
+            loading: false,
+            error: null,
+          });
+          return;
+        }
+
+        // In production, fetch from API
+        const response = await fetch("/api/auth/session");
+        const data = await response.json();
+
+        if (data.user) {
+          setState({
+            user: data.user,
+            session: data.session,
+            loading: false,
+            error: null,
+          });
+        } else {
+          setState({
+            user: null,
+            session: null,
+            loading: false,
+            error: null,
+          });
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        setState({
+          user: null,
+          session: null,
+          loading: false,
+          error: error instanceof Error ? error.message : "Error de autenticación",
+        });
       }
-    }
+    };
 
     initialize();
-  }, []);
+  }, [isDev]);
 
-  // Login function
-  const handleLogin = useCallback(async (email: string, password: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
+  // Login
+  const login = useCallback(async (email: string, password: string) => {
     try {
-      const { user: loggedInUser, session: newSession } = await login(email, password);
-      setUser(loggedInUser);
-      setSession(newSession);
-      setLoading(false);
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al iniciar sesión");
-      setLoading(false);
-      return false;
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+
+      // In development, just return mock user
+      if (isDev) {
+        setState({
+          user: mockUser,
+          session: {
+            id: "session-1",
+            userId: "user-1",
+            token: "mock-token",
+            refreshToken: "mock-refresh-token",
+            expiresAt: new Date(Date.now() + 86400000),
+            createdAt: new Date(),
+          },
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
+      // In production, send to API
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al iniciar sesión");
+      }
+
+      setState({
+        user: data.user,
+        session: data.session,
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : "Error al iniciar sesión",
+      }));
+      throw error;
     }
-  }, []);
+  }, [isDev]);
 
-  // Register function
-  const handleRegister = useCallback(async (name: string, email: string, password: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
+  // Register
+  const register = useCallback(async (email: string, password: string, name: string) => {
     try {
-      const { user: newUser, session: newSession } = await register(name, email, password);
-      setUser(newUser);
-      setSession(newSession);
-      setLoading(false);
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al registrar");
-      setLoading(false);
-      return false;
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+
+      // In development, just return mock user
+      if (isDev) {
+        setState({
+          user: mockUser,
+          session: {
+            id: "session-1",
+            userId: "user-1",
+            token: "mock-token",
+            refreshToken: "mock-refresh-token",
+            expiresAt: new Date(Date.now() + 86400000),
+            createdAt: new Date(),
+          },
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
+      // In production, send to API
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al registrar usuario");
+      }
+
+      setState({
+        user: data.user,
+        session: data.session,
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : "Error al registrar usuario",
+      }));
+      throw error;
     }
-  }, []);
+  }, [isDev]);
 
-  // Logout function
-  const handleLogout = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
+  // Logout
+  const logout = useCallback(async () => {
     try {
-      await logout();
-      setUser(null);
-      setSession(null);
+      setState((prev) => ({ ...prev, loading: true }));
+
+      // In development, just clear state
+      if (isDev) {
+        setState({
+          user: null,
+          session: null,
+          loading: false,
+          error: null,
+        });
+        router.push("/auth/login");
+        return;
+      }
+
+      // In production, send to API
+      await fetch("/api/auth/logout", { method: "POST" });
+
+      setState({
+        user: null,
+        session: null,
+        loading: false,
+        error: null,
+      });
       router.push("/auth/login");
-    } catch {
-      // Ignore logout errors
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error("Logout error:", error);
+      setState({
+        user: null,
+        session: null,
+        loading: false,
+        error: null,
+      });
+      router.push("/auth/login");
     }
-  }, [router]);
+  }, [isDev, router]);
 
-  // Refresh session function
-  const handleRefresh = useCallback(async (): Promise<boolean> => {
-    try {
-      const { user: refreshedUser, session: newSession } = await refreshSession();
-      setUser(refreshedUser);
-      setSession(newSession);
-      return true;
-    } catch {
-      return false;
+  // Get workspace
+  const getWorkspace = useCallback(async () => {
+    // In development, return mock workspace
+    if (isDev) {
+      return mockWorkspace;
     }
-  }, []);
 
-  // Clear error function
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
+    // In production, fetch from API
+    const response = await fetch("/api/workspace");
+    const data = await response.json();
+    return data.workspace;
+  }, [isDev]);
 
   return {
-    user,
-    session,
-    loading,
-    error,
-    isAuthenticated: !!user,
-    login: handleLogin,
-    register: handleRegister,
-    logout: handleLogout,
-    refresh: handleRefresh,
-    clearError,
+    user: state.user,
+    session: state.session,
+    loading: state.loading,
+    error: state.error,
+    workspace: mockWorkspace,
+    login,
+    register,
+    logout,
+    getWorkspace,
   };
-}
-
-// Higher-order component for auth protection
-export function withAuth(Component: React.ComponentType) {
-  return function ProtectedComponent(props: any) {
-    const { user, loading, isAuthenticated } = useAuth();
-    const router = useRouter();
-
-    useEffect(() => {
-      if (!loading && !isAuthenticated) {
-        router.push("/auth/login");
-      }
-    }, [loading, isAuthenticated, router]);
-
-    if (loading || !isAuthenticated) {
-      return null;
-    }
-
-    return <Component {...props} user={user} />;
-  };
-}
-
-// Hook to check if user has specific role
-export function useHasRole(requiredRole: "owner" | "admin" | "member"): boolean {
-  const { user } = useAuth();
-
-  if (!user) return false;
-
-  const roles: Record<string, number> = {
-    owner: 3,
-    admin: 2,
-    member: 1,
-  };
-
-  return roles[user.role] >= roles[requiredRole];
 }
