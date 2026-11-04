@@ -1,0 +1,256 @@
+version: '3.8'
+
+# SavvyBot Docker Compose Configuration
+# This configuration sets up the complete SavvyBot platform with:
+# - PostgreSQL database
+# - Redis for caching and queues
+# - Web application (Next.js)
+# - Worker for background jobs
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose down            # Stop all services
+#   docker-compose logs -f        # View logs
+#   docker-compose build --no-cache  # Rebuild images
+
+services:
+  # ============================================
+  # POSTGRESQL DATABASE
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: savvybot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-savvybot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-savvybot_password}
+      POSTGRES_DB: ${POSTGRES_DB:-savvybot}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --data-checksums"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-savvybot} -d ${POSTGRES_DB:-savvybot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - savvybot_network
+    labels:
+      - "com.savvybot.service=database"
+      - "com.savvybot.description=PostgreSQL database for SavvyBot"
+
+  # ============================================
+  # REDIS
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: savvybot-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - savvybot_network
+    labels:
+      - "com.savvybot.service=cache"
+      - "com.savvybot.description=Redis for caching and queues"
+
+  # ============================================
+  # WEB APPLICATION (Next.js)
+  # ============================================
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: ${NODE_ENV:-production}
+    container_name: savvybot-web
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-savvybot}:${POSTGRES_PASSWORD:-savvybot_password}@postgres:5432/${POSTGRES_DB:-savvybot}?sslmode=disable
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # Encryption
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      
+      # App
+      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:3000}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${WEB_PORT:-3000}
+      
+      # OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      
+      # Stripe (optional)
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      BILLING_ENABLED: ${BILLING_ENABLED:-false}
+      
+      # Composio (optional)
+      COMPOSIO_API_KEY: ${COMPOSIO_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-3000}:${WEB_PORT:-3000}"
+    volumes:
+      - ./web/public:/app/public:ro
+      - ./web/.next:/app/.next:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${WEB_PORT:-3000}/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - savvybot_network
+    labels:
+      - "com.savvybot.service=web"
+      - "com.savvybot.description=SavvyBot web application"
+      - "traefik.enable=true"
+      - "traefik.http.routers.savvybot-web.rule=Host(`savvybot.localhost`)"
+      - "traefik.http.services.savvybot-web.loadbalancer.server.port=${WEB_PORT:-3000}"
+
+  # ============================================
+  # WORKER (Background Jobs)
+  # ============================================
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: ${NODE_ENV:-production}
+    container_name: savvybot-worker
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-savvybot}:${POSTGRES_PASSWORD:-savvybot_password}@postgres:5432/${POSTGRES_DB:-savvybot}?sslmode=disable
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # Encryption
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      
+      # App
+      NODE_ENV: ${NODE_ENV:-production}
+      
+      # OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      
+      # Stripe (optional)
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      BILLING_ENABLED: ${BILLING_ENABLED:-false}
+      
+      # Composio (optional)
+      COMPOSIO_API_KEY: ${COMPOSIO_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - savvybot_network
+    labels:
+      - "com.savvybot.service=worker"
+      - "com.savvybot.description=SavvyBot background worker"
+
+  # ============================================
+  # PGADMIN (Optional - Database Management)
+  # ============================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: savvybot-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@savvybot.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    networks:
+      - savvybot_network
+    profiles:
+      - dev
+    labels:
+      - "com.savvybot.service=pgadmin"
+      - "com.savvybot.description=Database management interface"
+
+  # ============================================
+  # TRAEFIK (Optional - Reverse Proxy)
+  # ============================================
+  traefik:
+    image: traefik:v2.10
+    container_name: savvybot-traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - savvybot_network
+    profiles:
+      - prod
+    labels:
+      - "com.savvybot.service=traefik"
+      - "com.savvybot.description=Reverse proxy and load balancer"
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+    labels:
+      - "com.savvybot.volume=postgres_data"
+  redis_data:
+    driver: local
+    labels:
+      - "com.savvybot.volume=redis_data"
+  pgadmin_data:
+    driver: local
+    labels:
+      - "com.savvybot.volume=pgadmin_data"
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  savvybot_network:
+    driver: bridge
+    labels:
+      - "com.savvybot.network=main"
