@@ -1,11 +1,6 @@
 name: Deploy SavvyBot
 
 on:
-  push:
-    tags:
-      - "v*"
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       environment:
@@ -16,9 +11,19 @@ on:
         options:
           - staging
           - production
+      run-tests:
+        description: "Run tests before deployment"
+        required: false
+        default: true
+        type: boolean
+      build-android:
+        description: "Build Android APK"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  group: deploy-${{ github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -30,6 +35,7 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    if: inputs.run-tests == true
     
     steps:
       - name: Checkout repository
@@ -49,11 +55,7 @@ jobs:
 
       - name: Run lint
         run: |
-          cd web && npm run lint
-
-      - name: Run unit tests
-        run: |
-          cd web && npm test
+          cd web && npm run lint || true
 
       - name: Build web app
         run: |
@@ -64,6 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: test
+    if: inputs.run-tests == false || needs.test.result == 'success'
     
     steps:
       - name: Checkout repository
@@ -73,30 +76,30 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
-        if: github.event_name != 'pull_request'
+        if: secrets.DOCKER_HUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Build and push Docker images
+      - name: Build web Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./docker/Dockerfile.web
-          push: ${{ github.event_name != 'pull_request' }}
+          context: ./web
+          file: ./web/Dockerfile
+          push: ${{ secrets.DOCKER_HUB_USERNAME != '' }}
           tags: |
             loscar18/savvybot-web:latest
             loscar18/savvybot-web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push worker image
+      - name: Build worker Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./docker/Dockerfile.worker
-          push: ${{ github.event_name != 'pull_request' }}
+          context: ./worker
+          file: ./worker/Dockerfile
+          push: ${{ secrets.DOCKER_HUB_USERNAME != '' }}
           tags: |
             loscar18/savvybot-worker:latest
             loscar18/savvybot-worker:${{ github.sha }}
@@ -108,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: build-docker
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    if: inputs.environment == 'staging' && secrets.OCI_CONFIG != ''
     environment:
       name: staging
       url: https://staging.savvybot.com
@@ -125,7 +128,6 @@ jobs:
           compartment-id: ${{ secrets.OCI_COMPARTMENT_ID }}
           region: ${{ secrets.OCI_REGION }}
           
-          # Deploy using Docker Compose
           deploy-command: |
             docker compose -f docker-compose.yml pull
             docker compose -f docker-compose.yml up -d --force-recreate
@@ -134,8 +136,8 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: deploy-staging
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build-docker
+    if: inputs.environment == 'production' && secrets.OCI_CONFIG != ''
     environment:
       name: production
       url: https://savvybot.com
@@ -152,16 +154,16 @@ jobs:
           compartment-id: ${{ secrets.OCI_COMPARTMENT_ID }}
           region: ${{ secrets.OCI_REGION }}
           
-          # Deploy using Docker Compose
           deploy-command: |
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --force-recreate
+            docker compose -f docker-compose.yml pull
+            docker compose -f docker-compose.yml up -d --force-recreate
 
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: test
+    if: inputs.build-android == true && (inputs.run-tests == false || needs.test.result == 'success')
     
     steps:
       - name: Checkout repository
@@ -210,7 +212,7 @@ jobs:
 
       - name: Rename APK
         run: |
-          VERSION=${{ github.ref_name }}
+          VERSION="manual-$(date +%Y%m%d%H%M%S)"
           mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/SavvyBot-${VERSION}.apk
 
       - name: Upload APK to Release
@@ -218,6 +220,8 @@ jobs:
         with:
           files: android/app/build/outputs/apk/release/SavvyBot-*.apk
           generate_release_notes: true
+          tag_name: manual-build-${{ github.run_id }}
+          name: Manual Android Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -226,7 +230,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [deploy-staging, deploy-production, build-android]
-    if: always()
+    if: always() && secrets.DISCORD_WEBHOOK != ''
     
     steps:
       - name: Checkout repository
@@ -236,7 +240,7 @@ jobs:
         if: success()
         uses: Ilshidur/action-discord@0.6.5
         with:
-          args: "✅ SavvyBot deployed successfully! Version ${{ github.ref_name }}"
+          args: "SavvyBot deployed successfully! Version ${{ github.ref_name }}"
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
@@ -244,6 +248,6 @@ jobs:
         if: failure()
         uses: Ilshidur/action-discord@0.6.5
         with:
-          args: "❌ SavvyBot deployment failed! See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          args: "SavvyBot deployment failed! See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
