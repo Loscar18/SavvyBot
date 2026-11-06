@@ -3,7 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Enable experimental features for Next.js 15
   experimental: {
-    serverComponentsExternalPackages: ["crypto-js", "bullmq", "ioredis"],
+    serverComponentsExternalPackages: [
+      "crypto-js",
+      "bullmq",
+      "ioredis",
+      "@modelcontextprotocol/sdk",
+      "@composio/core",
+    ],
     ppr: true,
     serverActions: {
       bodySizeLimit: "2mb",

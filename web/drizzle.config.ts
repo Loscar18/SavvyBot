@@ -3,7 +3,7 @@ import type { Config } from "drizzle-kit";
 const config: Config = {
   schema: "./lib/db/schema.ts",
   out: "./drizzle",
-  driver: "pg",
+  dialect: "postgresql",
   dbCredentials: {
     connectionString: process.env.DATABASE_URL || "postgresql://user:password@localhost:5432/savvybot",
   },
