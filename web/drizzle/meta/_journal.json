@@ -1,10 +1,13 @@
 {
-  "version": 1,
-  "migrations": [
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
     {
-      "id": "0000_initial_schema",
-      "createdAt": 1730889600000,
-      "hash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
+      "idx": 0,
+      "version": "7",
+      "when": 1730889600000,
+      "tag": "0000_initial_schema",
+      "breakpoints": true
     }
   ]
 }
